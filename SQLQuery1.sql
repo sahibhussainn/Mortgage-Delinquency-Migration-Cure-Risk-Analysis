@@ -1,0 +1,1 @@
+select TOP 2 * from p1_2018q1;
