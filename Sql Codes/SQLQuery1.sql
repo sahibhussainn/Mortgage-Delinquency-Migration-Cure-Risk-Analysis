@@ -1,1 +1,1 @@
-select top 2 * from p1_2018q1;
+select * from p1_2018q1;
