@@ -1,4 +1,4 @@
--- Creating table for inserting the whole 2018 q1 dataset and also for column placement
+-- Creating table for inserting the whole 2018 q1 dataset and properly placing the column 
 CREATE TABLE dbo.p1_2018q1
 (
     LOAN_ID                       VARCHAR(50),
