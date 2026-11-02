@@ -1,6 +1,3 @@
-USE MortgageAnalytics;
-GO
-
 -- 1. Create staging table
 CREATE TABLE dbo.p1_2018q1
 (
@@ -27,7 +24,6 @@ CREATE TABLE dbo.p1_2018q1
     MOD_FLAG                       VARCHAR(10),
     HOMEREADY_PROGRAM_INDICATOR    VARCHAR(10)
 );
-GO
 
 -- 2. Import filtered CSV
 BULK INSERT dbo.p1_2018q1
@@ -41,5 +37,5 @@ WITH
     CODEPAGE = '65001',
     TABLOCK
 );
-GO
+
 
