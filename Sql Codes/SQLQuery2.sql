@@ -1,4 +1,7 @@
+
+
 --Creating main working table 
+
 
 CREATE TABLE dbo.p1_2018q1_clean
 (
@@ -26,7 +29,9 @@ CREATE TABLE dbo.p1_2018q1_clean
     HOMEREADY_PROGRAM_INDICATOR   VARCHAR(10)
 );
 
--- Inserting data from staging table to clean table and also converting required data types using TRY_CONVERT as the staging table datatypes was all varchar
+
+-- Inserting data from staging table to clean working table and also converting required data types using TRY_CONVERT as the staging table datatypes was all varchar
+
 
 INSERT INTO dbo.p1_2018q1_clean
 (
@@ -46,3 +51,52 @@ SELECT
     MOD_FLAG, HOMEREADY_PROGRAM_INDICATOR
 FROM dbo.p1_2018q1;
 
+
+-- Classifying each monthly row as delequent, not delequent and unknown
+
+
+SELECT 
+CASE 
+WHEN DLQ_STATUS = '00' THEN 'Current'
+WHEN DLQ_STATUS = 'XX' OR DLQ_STATUS = '' OR DLQ_STATUS IS NULL THEN 'Unknown'
+ELSE 'Delinquent'
+END AS Classifying_delinquent
+FROM p1_2018q1_clean;
+
+
+-- Using lag() window function to find the previous DLQ_STATUS and months_gap
+
+
+SELECT TOP(1000) LOAN_ID, ACT_PERIOD, ORIG_DATE, FIRST_PAY, ORIG_RATE, CURR_RATE, ORIG_UPB, CURRENT_UPB, LOAN_AGE ,HOMEREADY_PROGRAM_INDICATOR,DLQ_STATUS,
+LAG(DLQ_STATUS) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC) AS previous_DLQ_STATUS,
+DATEDIFF(MONTH, LAG(ACT_PERIOD) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC), ACT_PERIOD) AS months_gap
+FROM p1_2018q1_clean
+
+
+-- Flagging a row where an episode starts
+
+SELECT LOAN_ID, ACT_PERIOD, DLQ_STATUS, previous_DLQ_STATUS, months_gap, Classifying_delinquent,
+CASE WHEN Classifying_delinquent = 'Delinquent' AND previous_DLQ_STATUS = '00' AND months_gap = 1 THEN 'episode starts' 
+ELSE 'Nothing imp'
+END as episode_flag
+FROM (
+SELECT TOP(100000) LOAN_ID, ACT_PERIOD, ORIG_DATE, FIRST_PAY, ORIG_RATE, CURR_RATE, ORIG_UPB, CURRENT_UPB, LOAN_AGE ,HOMEREADY_PROGRAM_INDICATOR,DLQ_STATUS,
+CASE 
+WHEN DLQ_STATUS = '00' THEN 'Current'
+WHEN DLQ_STATUS = 'XX' OR DLQ_STATUS = '' OR DLQ_STATUS IS NULL THEN 'Unknown'
+ELSE 'Delinquent'
+END AS Classifying_delinquent,
+LAG(DLQ_STATUS) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC) AS previous_DLQ_STATUS,
+DATEDIFF(MONTH, LAG(ACT_PERIOD) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC), ACT_PERIOD) AS months_gap
+FROM p1_2018q1_clean ) AS new_sub
+
+
+-- Discarding rows where 1st row is only DLY , as it means we cant  see the actual start of it
+
+
+Select LOAN_ID , DLQ_STATUS 
+FROM (
+SELECT  LOAN_ID , DLQ_STATUS ,
+ROW_NUMBER() OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC) as rn
+FROM p1_2018q1_clean) AS sub_q
+WHERE rn =1 AND DLQ_STATUS NOT IN ('00', 'XX')

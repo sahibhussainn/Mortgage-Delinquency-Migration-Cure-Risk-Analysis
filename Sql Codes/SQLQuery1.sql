@@ -38,4 +38,3 @@ WITH
     TABLOCK
 );
 
-
