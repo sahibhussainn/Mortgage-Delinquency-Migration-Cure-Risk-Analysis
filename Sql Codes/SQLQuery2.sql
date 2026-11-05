@@ -1,6 +1,6 @@
 
-
---Creating main working table 
+-- PHASE 2 — Clean Table
+-- Creating main working table 
 
 
 CREATE TABLE dbo.p1_2018q1_clean
@@ -51,8 +51,8 @@ SELECT
     MOD_FLAG, HOMEREADY_PROGRAM_INDICATOR
 FROM dbo.p1_2018q1;
 
-
--- Classifying each monthly row as delequent, not delequent and unknown
+-- PHASE 3 — Delinquency Episodes
+-- STEP 1:Classifying each monthly row as delequent, not delequent and unknown
 
 
 SELECT 
@@ -64,7 +64,7 @@ END AS Classifying_delinquent
 FROM p1_2018q1_clean;
 
 
--- Using lag() window function to find the previous DLQ_STATUS and months_gap
+-- STEP 2:Using lag() window function to find the previous DLQ_STATUS and months_gap
 
 
 SELECT TOP(1000) LOAN_ID, ACT_PERIOD, ORIG_DATE, FIRST_PAY, ORIG_RATE, CURR_RATE, ORIG_UPB, CURRENT_UPB, LOAN_AGE ,HOMEREADY_PROGRAM_INDICATOR,DLQ_STATUS,
@@ -73,7 +73,7 @@ DATEDIFF(MONTH, LAG(ACT_PERIOD) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD A
 FROM p1_2018q1_clean
 
 
--- Flagging a row where an episode starts
+-- STEP 3:Flagging a row where an episode starts
 
 SELECT LOAN_ID, ACT_PERIOD, DLQ_STATUS, previous_DLQ_STATUS, months_gap, Classifying_delinquent,
 CASE WHEN Classifying_delinquent = 'Delinquent' AND previous_DLQ_STATUS = '00' AND months_gap = 1 THEN 'episode starts' 
@@ -91,7 +91,7 @@ DATEDIFF(MONTH, LAG(ACT_PERIOD) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD A
 FROM p1_2018q1_clean ) AS new_sub
 
 
--- Discarding rows where 1st row is only DLY , as it means we cant  see the actual start of it
+-- STEP 4:Discarding rows where 1st row is only DLY , as it means we cant  see the actual start of it
 
 
 Select LOAN_ID , DLQ_STATUS 
