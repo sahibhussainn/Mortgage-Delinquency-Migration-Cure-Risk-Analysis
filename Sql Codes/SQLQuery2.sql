@@ -1,5 +1,5 @@
 
--- PHASE 2 — Clean Table
+-- PHASE 2 ï¿½ Clean Table
 -- Creating main working table 
 
 
@@ -51,7 +51,7 @@ SELECT
     MOD_FLAG, HOMEREADY_PROGRAM_INDICATOR
 FROM dbo.p1_2018q1;
 
--- PHASE 3 — Delinquency Episodes
+-- PHASE 3 ï¿½ Delinquency Episodes
 -- STEP 1:Classifying each monthly row as delequent, not delequent and unknown
 
 
@@ -102,19 +102,18 @@ FROM p1_2018q1_clean) AS sub_q
 WHERE rn =1 AND TRY_CONVERT(INT, DLQ_STATUS) BETWEEN 1 AND 99 
 
 
--- STEP 5:Classify every episode’s outcome using 4 rule set
+-- STEP 5:Classify every episodeï¿½s outcome using 4 rule set
 
 
 SELECT * , 
 CASE 
-WHEN Zero_Bal_Code IS NULL THEN 'Loan not over'
-WHEN Zero_Bal_Code = '01' THEN 'Prepaid' 
-WHEN Zero_Bal_Code = '02' THEN 'Third-party sale' 
-WHEN Zero_Bal_Code = '03' THEN 'Short sale' 
-WHEN Zero_Bal_Code = '06' THEN 'Repurchased' 
-WHEN Zero_Bal_Code = '09' THEN 'Deed-in-lieu' 
-WHEN Zero_Bal_Code = '15' THEN 'Note sale' 
-WHEN Zero_Bal_Code = '16' THEN 'Reperforming loan sale' 
+WHEN Zero_Bal_Code_month_1 = '01' OR Zero_Bal_Code_month_2 = '01' OR Zero_Bal_Code_month_3 = '01' THEN 'Prepaid' 
+WHEN Zero_Bal_Code_month_1 = '02' OR Zero_Bal_Code_month_2 = '02' OR Zero_Bal_Code_month_3 = '02'  THEN 'Third-party sale' 
+WHEN Zero_Bal_Code_month_1 = '03' OR Zero_Bal_Code_month_2 = '03' OR Zero_Bal_Code_month_3 = '03'  THEN 'Short sale' 
+WHEN Zero_Bal_Code_month_1 = '06' OR Zero_Bal_Code_month_2 = '06' OR Zero_Bal_Code_month_3 = '06'  THEN 'Repurchased' 
+WHEN Zero_Bal_Code_month_1 = '09' OR Zero_Bal_Code_month_2 = '09' OR Zero_Bal_Code_month_3 = '09'  THEN 'Deed-in-lieu' 
+WHEN Zero_Bal_Code_month_1 = '15' OR Zero_Bal_Code_month_2 = '15' OR Zero_Bal_Code_month_3 = '15'  THEN 'Note sale' 
+WHEN Zero_Bal_Code_month_1 = '16' OR Zero_Bal_Code_month_2 = '16' OR Zero_Bal_Code_month_3 = '16'  THEN 'Reperforming loan sale' 
 END AS Zero_Balance_Codes_Meaning,
 CASE 
 WHEN DLQ_month_1 = '00' OR DLQ_month_2 = '00' OR DLQ_month_3 = '00' THEN 'Cured'  -- Rule 1
@@ -136,7 +135,10 @@ CASE WHEN Classifying_delinquent = 'Delinquent' AND previous_DLQ_STATUS = '00' A
 ELSE 'Nothing imp'
 END as episode_flag 
 FROM (
-SELECT * ,
+SELECT LOAN_ID, ACT_PERIOD, ORIG_DATE, FIRST_PAY, ORIG_RATE, CURR_RATE,
+    ORIG_UPB, CURRENT_UPB, LOAN_AGE, OLTV, OCLTV, DTI, CSCORE_B,
+    PURPOSE, OCC_STAT, STATE, PRODUCT, DLQ_STATUS, Zero_Bal_Code,
+    ZB_DTE, HOMEREADY_PROGRAM_INDICATOR ,
 CASE 
 WHEN DLQ_STATUS = '00' THEN 'Current'
 WHEN DLQ_STATUS = 'XX' OR DLQ_STATUS = '' OR DLQ_STATUS IS NULL THEN 'Unknown'
@@ -149,6 +151,9 @@ LEAD(DLQ_STATUS, 3) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC) AS DLQ_m
 LEAD(Zero_Bal_Code, 1) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC) AS Zero_Bal_Code_month_1,
 LEAD(Zero_Bal_Code, 2) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC) AS Zero_Bal_Code_month_2,
 LEAD(Zero_Bal_Code, 3) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC) AS Zero_Bal_Code_month_3,
+LEAD(ZB_DTE, 1) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC) AS ZB_DTE_month_1,
+LEAD(ZB_DTE, 2) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC) AS ZB_DTE_month_2,
+LEAD(ZB_DTE, 3) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC) AS ZB_DTE_month_3,
 LEAD(ACT_PERIOD, 1) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC) AS ACT_PERIOD_month_1,
 LEAD(ACT_PERIOD, 2) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC) AS ACT_PERIOD_month_2,
 LEAD(ACT_PERIOD, 3) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD ASC) AS ACT_PERIOD_month_3,
@@ -164,3 +169,4 @@ FROM p1_2018q1_clean
 ) AS sub_q
 WHERE rn = 1 AND TRY_CONVERT(INT, DLQ_STATUS) BETWEEN 1 AND 99
 )
+
