@@ -1,5 +1,5 @@
 
--- PHASE 2 � Clean Table
+-- PHASE 2 : Clean Table
 -- Creating main working table 
 
 
@@ -51,11 +51,11 @@ SELECT
     MOD_FLAG, HOMEREADY_PROGRAM_INDICATOR
 FROM dbo.p1_2018q1;
 
--- PHASE 3 � Delinquency Episodes
+-- PHASE 3 : Delinquency Episodes
 -- STEP 1:Classifying each monthly row as delequent, not delequent and unknown
 
 
-SELECT 
+SELECT *,
 CASE 
 WHEN DLQ_STATUS = '00' THEN 'Current'
 WHEN DLQ_STATUS = 'XX' OR DLQ_STATUS = '' OR DLQ_STATUS IS NULL THEN 'Unknown'
@@ -91,7 +91,7 @@ DATEDIFF(MONTH, LAG(ACT_PERIOD) OVER (PARTITION BY LOAN_ID ORDER BY ACT_PERIOD A
 FROM p1_2018q1_clean ) AS new_sub
 
 
--- STEP 4:Discarding rows where 1st row is only DLY , as it means we cant  see the actual start of it
+-- STEP 4:Finding rows where 1st row is only DLY , as it means we cant see the actual start of it and later discarding this type of loan.
 
 
 Select LOAN_ID , DLQ_STATUS 
@@ -102,7 +102,7 @@ FROM p1_2018q1_clean) AS sub_q
 WHERE rn =1 AND TRY_CONVERT(INT, DLQ_STATUS) BETWEEN 1 AND 99 
 
 
--- STEP 5 to 7:Classify every episode�s outcome using 4 rule set
+-- STEP 5 to 7:Classify every episode's outcome using 4 rule set
 
 SELECT LOAN_ID
 INTO #left_censored1
@@ -130,13 +130,13 @@ CASE
 WHEN DLQ_month_1 = '00' OR DLQ_month_2 = '00' OR DLQ_month_3 = '00' THEN 'Cured'  -- Rule 1
 WHEN Zero_Bal_Code_month_1 IS NOT NULL 
 OR Zero_Bal_Code_month_2 IS NOT NULL 
-OR Zero_Bal_Code_month_3 IS NOT NULL THEN 'Exit before completion' -- Rule 2
+OR Zero_Bal_Code_month_3 IS NOT NULL THEN 'Exit before completion' -- Rule 4
 WHEN DATEDIFF(MONTH, ACT_PERIOD, ACT_PERIOD_month_1) <> 1 
 OR DATEDIFF(MONTH, ACT_PERIOD, ACT_PERIOD_month_2) <> 2 
 OR DATEDIFF(MONTH, ACT_PERIOD, ACT_PERIOD_month_3) <> 3
 OR DLQ_month_1 IS NULL OR DLQ_month_2 IS NULL OR DLQ_month_3 IS NULL
 OR DLQ_month_1 = 'XX' OR DLQ_month_2 = 'XX' OR DLQ_month_3 = 'XX' THEN 'Unknown' -- Rule 3
-ELSE 'Not Cured'  -- Rule 4
+ELSE 'Not Cured'  -- Rule 2
 END AS Rule_Set
 FROM (
 SELECT * 
@@ -267,7 +267,7 @@ SELECT LOAN_ID,
     START_DLQ_STATUS,
     ORIG_DATE, FIRST_PAY, ORIG_RATE, CURR_RATE,
     ORIG_UPB, CURRENT_UPB, LOAN_AGE, OLTV, OCLTV, DTI, CSCORE_B,
-    PURPOSE, OCC_STAT, STATE, PRODUCT, Zero_Bal_Code,ZB_DTE , EXIT_DATE,Zero_Balance_Codes_Meaning , Rule_Set, 
+    PURPOSE, OCC_STAT, STATE, PRODUCT, Zero_Bal_Code,ZB_DTE, EXIT_DATE,Zero_Balance_Codes_Meaning, Rule_Set, 
 CASE 
 WHEN EPISODE_START_DATE < '2020-03-01' THEN 'Pre-Covid'
 ELSE 'Post-Covid'
