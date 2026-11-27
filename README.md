@@ -1,19 +1,3 @@
-Good — now I can see your actual folder structure. Let me check one thing first: your `Dataset_for_PBi` and `Sql Output` folders contain CSV files (the regression inputs and the `p1_primary_analysis` export), which matters for your "never push raw CSV" rule.
-
-Confirmed — your repo actually contains:
-- `Dataset_for_PBi/` — 2 derived CSVs (~9.5MB each, not the raw 6GB file, these are your processed episode-level exports) + Regression_Summary.csv
-- `Sql Output/p1_primary_analysis.csv` — ~11MB, also a derived output, not raw
-- `.pbix` Power BI file
-- Two notebooks (P1.ipynb, P2.ipynb)
-- Two SQL scripts
-- `.gitignore` (4 bytes — let me check what it actually excludes)
-
-Important flag before I write the final README: **your `.gitignore` only excludes `.vs/`** (a Visual Studio settings folder) — it does **not** exclude any CSV files or the raw 6GB source file. That means nothing is actually stopping those files from being committed except you manually choosing not to `git add` them. Since you've confirmed the repo only has the derived CSVs (which are fine to share — they're your own processed output, not the raw Fannie Mae file), this hasn't bitten you yet, but it's worth knowing it's not enforced.
-
-Now, the README — matching your **exact existing folder names**, no renaming:
-
----
-
 # Mortgage Delinquency Migration & Cure-Risk Analysis
 
 **Fannie Mae Single-Family Loan Performance Data — 2018 Q1 Cohort**
