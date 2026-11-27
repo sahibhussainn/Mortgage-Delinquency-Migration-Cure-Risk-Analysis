@@ -2,7 +2,7 @@ Metric,Value
 Odds Ratio,0.882
 CI Lower,0.83
 CI Upper,0.937
-P-Value,0.0
+P-Value,0.001
 Predicted Cure Rate H,50.39
 Predicted Cure Rate 7,53.53
 Adjusted Gap (pp),3.14
