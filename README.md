@@ -1,140 +1,110 @@
 # Mortgage Delinquency Migration & Cure-Risk Analysis
 
-### Fannie Mae Single-Family Loan Performance Data | 2018 Q1 Cohort
+**Fannie Mae Single-Family Loan Performance Data — 2018 Q1 Cohort**
 
-## Overview
+## The Problem
 
-A mortgage becoming delinquent does not necessarily mean it will end in default. Some borrowers catch up on their payments within a few months, while others remain behind or fall further into delinquency. Understanding these transitions is useful for credit-risk monitoring and loan-servicing decisions.
+When a homeowner misses mortgage payments, it doesn't automatically mean they're headed to foreclosure. Many borrowers catch up within a few months on their own. For a credit risk or loan servicing team, knowing which borrowers are likely to self-correct versus which need early intervention is a real, practical question — it shapes where resources and outreach get focused.
 
-This project looks at **what happens after a mortgage first becomes delinquent**, with a particular focus on Fannie Mae's **HomeReady** program. The main question is whether HomeReady loans have a different likelihood of returning to current payment status within three months compared with loans that are not classified under a special eligibility program, after accounting for factors such as credit score, loan-to-value ratio (LTV), and debt-to-income ratio (DTI).
+Fannie Mae's **HomeReady** program is built for lower-income borrowers, with smaller down payments and more flexible underwriting than a standard loan. This raises a natural question for a risk team: **if a HomeReady borrower falls behind, do they recover at a different rate than a standard borrower — and is that actually about the program, or just about the kind of borrower it tends to attract (lower credit scores, higher loan-to-value)?**
 
-The analysis is observational. It aims to identify patterns and associations, not establish that participation in HomeReady causes a particular repayment outcome.
-
-> **Project status:** In progress. Data extraction, SQL Server loading, and initial schema checks are complete. Delinquency episode construction and outcome labeling are next. No final cure-rate or modeling results are reported yet.
+This project answers that question end to end: SQL for data cleaning and delinquency episode construction, Python for hypothesis testing and an adjusted logistic regression, and Power BI for presenting the results.
 
 ## Business Questions
 
-- How often do newly delinquent loans return to current status within three months?
-- How do three-month cure rates compare between HomeReady loans and the non-special-eligibility comparison group?
-- What share of delinquency episodes remain delinquent, worsen, or exit the observed loan history?
-- Are differences between the groups still present after adjusting for borrower and loan characteristics?
-- Which characteristics are associated with a higher or lower likelihood of curing?
+1. How often do delinquent loans return to current status within 3 months?
+2. Is there a real difference in cure rate between HomeReady and standard loans, or could the raw numbers just be noise?
+3. How much of that difference is explained by borrower risk factors — credit score, loan-to-value, debt-to-income — rather than the program itself?
+4. Which loan characteristics are most strongly associated with curing?
+5. Is the remaining, risk-adjusted gap between the two groups still meaningful once those factors are controlled for?
 
-## Data Source
+## Key Findings
 
-**Source:** [Fannie Mae Single-Family Loan Performance Data](https://capitalmarkets.fanniemae.com/credit-risk-transfer/single-family-credit-risk-transfer/single-family-loan-performance-data)
+| Metric | Value |
+|---|---|
+| Raw cure rate — HomeReady | 61.6% |
+| Raw cure rate — Standard | 69.0% |
+| Raw gap | 6.6 percentage points |
+| Statistical significance of raw gap (chi-square test) | p = 1.19 × 10⁻³⁴ |
+| Adjusted odds ratio (HomeReady vs Standard) | 0.88 (95% CI: 0.83–0.94) |
+| Adjusted cure rate — HomeReady | 50.39% |
+| Adjusted cure rate — Standard | 53.53% |
+| Adjusted gap | 3.14 percentage points |
+| Statistical significance of adjusted gap | p < 0.001 |
 
-The source contains monthly performance records for individual mortgages. A loan can therefore appear in many rows, one for each reporting month. The working dataset uses the **2018 Q1 acquisition cohort**, with monthly records extending through December 2025.
+**In plain terms:** HomeReady borrowers do cure less often than standard borrowers. But about half of that raw gap disappears once credit score, loan-to-value, and other risk factors are controlled for. A smaller, but still statistically significant, gap remains after that adjustment — meaning HomeReady status itself is associated with a somewhat lower chance of recovering from delinquency, independent of those other factors.
 
-| Item | Working dataset |
-| --- | --- |
-| Source file | `2018Q1.csv` |
-| SQL Server database | `MortgageAnalytics` |
-| SQL Server table | `dbo.p1_2018q1` |
-| Filtered records | 23,563,399 loan-month rows |
-| Selected columns | 22 |
-| Reporting periods | January 2018–December 2025 |
-| Record grain | One loan per reporting month |
+## Why This Matters
 
-The original pipe-delimited file contains 113 fields. I used Python to retain the 22 fields relevant to the analysis, then loaded the filtered CSV into SQL Server. The dataset is not included in this repository because of its size and the source's applicable terms of use.
+This is the kind of distinction a credit risk or servicing team needs before acting on a number: is a program riskier on its own merits, or does it just attract a riskier population? Conflating the two leads to the wrong conclusion — over-blaming a program, or under-pricing its actual risk. This analysis separates the two.
 
-### Program identification
+## Data
 
-The current Fannie Mae file layout identifies field 79 as **Special Eligibility Program**. In the working table, that field retains the earlier column name `HOMEREADY_PROGRAM_INDICATOR`.
+| Item | Detail |
+|---|---|
+| Source | Fannie Mae Single-Family Loan Performance Data |
+| Cohort | 2018 Q1 acquisitions |
+| Raw loan-month records | 23,563,399 |
+| Columns used (of 113 available) | 22 |
+| Unique loans in cohort | HomeReady = 30,863, HFA Preferred = 14,291, Standard (7) = 413,676 |
+| Eligible delinquency episodes analyzed | 72,555 (verified: COUNT(\*) = COUNT(DISTINCT LOAN_ID) = 72,555) |
+| Episodes by group | HomeReady = 6,645, Standard = 62,339, HFA Preferred = 3,571 |
 
-| Value | Definition | Use in this analysis |
-| --- | --- | --- |
-| `H` | HomeReady / Home Possible | HomeReady group |
-| `7` | Not Applicable | Primary comparison group |
-| `F` | HFA Preferred | Excluded from primary comparison |
-| `R`, `O`, `9` | RefiNow, Other, Not Available | Excluded from primary comparison |
+HFA Preferred loans are a separate affordability program and were excluded from the core HomeReady-vs-standard comparison — they're included in the full population count on the dashboard's Overview page, but not in the regression.
 
-The comparison group is described as **loans without an applicable special eligibility program**, rather than assuming every loan is otherwise identical to a HomeReady loan.
-
-## Tools and Technologies
-
-| Tool | Purpose |
-| --- | --- |
-| SQL Server / T-SQL | Store the monthly loan records, validate data, and inspect loan histories |
-| Python, Pandas, NumPy | Prepare delinquency episodes and calculate outcome labels |
-| SciPy | Descriptive and statistical comparisons |
-| statsmodels | Logistic regression for adjusted cure-risk analysis |
-| Power Query, DAX, Power BI | Data modeling, measures, and dashboard development |
+The original raw source file (several gigabytes, pipe-delimited, 113 columns) is not included in this repository — Fannie Mae's terms of use don't permit redistributing it. The CSVs in `Dataset_for_PBi/` and `Sql Output/` are this project's own processed, loan-level outputs (episode data and model results), not the raw source file.
 
 ## Methodology
 
-### 1. Data preparation and validation
+**1. Data cleaning** (`Sql Codes/SQLQuery1.sql`)
+Converted the raw text file into proper data types, validated the row count matched the source exactly, and checked category values — like delinquency status codes — against Fannie Mae's official data dictionary.
 
-The original CSV was read in chunks to avoid loading the entire file into memory. I selected 22 columns covering loan identifiers, reporting periods, balances, origination characteristics, delinquency status, loan exits, modification status, and special eligibility program classification.
+**2. Delinquency episode construction** (`Sql Codes/SQLQuery2.sql`)
+This was the core and most technically demanding step. A loan doesn't have "a delinquency" as a single flag — it has a run of consecutive delinquent months, starting from an earlier "current" month. Episode start points were identified carefully, excluding loans that were already delinquent the first time they appear in the data, since there's no way to confirm their true starting point. Each episode's outcome over the following 3 months was classified as Cured, Not Cured, Exited before completion, or Unknown, using both the delinquency status and the loan's exit reason code — so a loan that cured and then later paid off is still correctly counted as cured, not mislabeled. Output: `Sql Output/p1_primary_analysis.csv`.
 
-I then imported the filtered data into SQL Server and checked the total row count, sample records, field positions against the Fannie Mae glossary, and duplicate loan-month combinations. An important part of this step was explicitly preserving the output column order after using Pandas `usecols`, so that the CSV aligned with the SQL table schema.
+**3. Statistical analysis** (`Python codes for Data Cleaning/P1.ipynb`, `P2.ipynb`)
+- 95% confidence intervals for each group's raw cure rate.
+- A correlation and variance inflation factor (VIF) check across loan characteristics — OLTV and OCLTV were found to be about 98% redundant with each other, so OLTV was retained and OCLTV dropped.
+- A chi-square test confirming the raw cure-rate gap between groups is statistically real, not sampling noise.
+- A logistic regression predicting cure outcome from program group plus credit score, loan-to-value, debt-to-income, loan age, starting delinquency severity, loan purpose, occupancy type, and a pre/post-COVID flag — run on the full eligible sample with no train/test split, since this is an explanatory model measuring adjusted association rather than a predictive one, and each loan contributes only a single episode.
+- Exported three files to `Dataset_for_PBi/`: `Full_Population_Data.csv` (all HomeReady + Standard + HFA Preferred episodes, feeding the dashboard's Overview page), `H7_Comparison_Data.csv` (HomeReady vs Standard only, feeding the group comparison and risk-factor pages), and `Regression_Summary.csv` (the final model output).
 
-One source-data detail is that **Current Actual UPB can be reported as zero during the early life of a loan because of masking**. It should not automatically be treated as a payoff. The official glossary notes that the value is masked for the first six months of the loan's life.
+**4. Power BI dashboard** (`Power BI Report/Mortgage-Delinquency-Migration-Cure-Risk-Analysis.pbix`)
+A 4-page dashboard — Overview, Group Comparison, Risk Factor Breakdown, Statistical Findings. All statistics were calculated in Python beforehand; Power BI's role here is purely presentation and visualization, not calculation.
 
-### 2. Delinquency migration and episode construction — next
+## Dashboard
 
-I plan to order each loan's monthly records chronologically and identify transitions from current (`DLQ_STATUS = '00'`) to delinquent (`'01'` and above). The primary analysis will use the first qualifying delinquency episode per loan to keep the initial comparison straightforward.
+**Overview**
+![Overview](Powerbi_Images/1.png)
 
-The outcome window will cover the next three calendar months after delinquency begins. Each episode will be evaluated for:
+**Group Comparison**
+![Group Comparison](Powerbi_Images/2.png)
 
-- **Cured:** Returned to `00` within the three-month window.
-- **Remained delinquent:** Did not return to current status and remained delinquent during the observed window.
-- **Worsened:** Reached a more severe delinquency status during the window.
-- **Incomplete or exited:** Missing required follow-up, unknown status, payoff, liquidation, or another exit requiring separate treatment.
+**Risk Factor Breakdown**
+![Risk Factor Breakdown](Powerbi_Images/3.png)
 
-These categories need carefully defined rules. In particular, *worsened* can overlap with *remained delinquent*, so the final dataset will keep the binary three-month cure outcome separate from the migration/severity classification. A loan will not automatically be labeled as a non-cure simply because its records stop appearing.
+**Statistical Findings**
+![Statistical Findings](Powerbi_Images/4.png)
 
-### 3. Statistical analysis — planned
+## Limitations
 
-After the episode-level dataset is ready, I will calculate cure rates for each group and examine how they vary by credit score, LTV, DTI, and other relevant characteristics.
+- **Correlational, not causal.** This analysis shows an association between HomeReady status and cure rate, not proof that program participation causes a lower cure rate.
+- **Scoped to a single cohort.** Results are specific to loans originated in 2018 Q1 and may not generalize to other vintages or economic conditions.
+- **"Standard" (coded 7) is a catch-all group, not a verified clean baseline.** It means "not flagged under any special eligibility program," which covers a wide range of borrowers rather than a single uniform population.
+- **The observation window spans the COVID-19 period**, during which loan performance was affected by forbearance programs and broader economic disruption. A pre/post-COVID flag was included as a control, but this remains a relevant caveat when interpreting results.
 
-A chi-square test will be used for an initial comparison of cure outcomes between groups, subject to the independence assumptions of the episode sample. I will also inspect relationships among numeric predictors before fitting an adjusted logistic regression using `statsmodels`.
+## Tools Used
 
-The regression will estimate the association between program classification and the probability of curing within three months, while controlling for available loan characteristics. Model evaluation will use a time-aware holdout strategy and safeguards against the same loan leaking between training and test samples.
+T-SQL · Python (Pandas, NumPy, SciPy, statsmodels) · Power BI (Power Query, DAX)
 
-### 4. Power BI dashboard — planned
+## Repository Structure
 
-The dashboard will be designed around the questions a mortgage servicing or credit-risk analyst would ask:
-
-- Delinquency entry volume and trends
-- Three-month cure rates by program group
-- Delinquency migration and severity patterns
-- Cure rates by borrower and loan segments
-- Summary of adjusted model findings, with appropriate caveats
-
-## Current Progress
-
-- [x] Selected the Fannie Mae 2018 Q1 dataset
-- [x] Extracted 22 analysis fields from the 113-field source file
-- [x] Loaded 23,563,399 loan-month records into SQL Server
-- [x] Checked the field mapping against the Fannie Mae glossary
-- [x] Checked for duplicate `(LOAN_ID, ACT_PERIOD)` records
-- [ ] Finalize delinquency entry and follow-up rules
-- [ ] Build the episode-level analysis dataset
-- [ ] Calculate cure and migration outcomes
-- [ ] Run statistical tests and logistic regression
-- [ ] Build the Power BI dashboard
-- [ ] Document results, limitations, and business implications
-
-## Important Limitations
-
-This is a single acquisition-quarter cohort, not a representative sample of all mortgages. The HomeReady and comparison groups may differ in ways that are not fully captured by the available fields. Results will therefore be reported as **associations**, not causal effects.
-
-Other considerations include the handling of missing months, unknown delinquency statuses, loan modifications, prepayments and liquidation events, and the choice of observation window. The final analysis will document these decisions and, where practical, test how sensitive the findings are to them.
-
-## Expected Deliverables
-
-1. Reproducible SQL and Python scripts for preparing the data and defining delinquency episodes.
-2. An episode-level analysis dataset or a reproducible process for generating it.
-3. Statistical comparison and adjusted logistic regression results.
-4. A Power BI dashboard for exploring delinquency and cure patterns.
-5. A short findings report explaining the results in business terms.
-
-## References
-
-- [Fannie Mae — Single-Family Loan Performance Data](https://capitalmarkets.fanniemae.com/credit-risk-transfer/single-family-credit-risk-transfer/single-family-loan-performance-data)
-- Fannie Mae, *Single-Family Loan Performance Dataset and Credit Risk Transfer — Glossary and File Layout* (September 10, 2026), supplied with the project materials.
-
----
-
-*This README will be updated as the analysis progresses. Results and screenshots will be added only after they have been calculated and validated.*
+```
+Dataset_for_PBi/                 — processed CSVs feeding the Power BI dashboard
+Power BI Report/                 — the .pbix dashboard file
+Python codes for Data Cleaning/  — Jupyter notebooks (statistical analysis and regression)
+Sql Codes/                       — T-SQL scripts for data cleaning and episode construction
+Sql Output/                      — episode-level dataset output from SQL
+README.md
+.gitignore
+```
